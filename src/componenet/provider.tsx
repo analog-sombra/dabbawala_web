@@ -20,7 +20,7 @@ export default function AppProvider({ children }: { children: ReactNode }) {
         {/* <HydrationBoundary state={pageProps.dehydratedState}> */}
         {children}
         {/* </HydrationBoundary> */}
-        <ReactQueryDevtools initialIsOpen={false} />
+        {/* <ReactQueryDevtools initialIsOpen={false} /> */}
       </QueryClientProvider>
       <ToastContainer />
     </>

@@ -5,6 +5,7 @@ import {
   FluentBuildingShop20Regular,
   FluentCall32Regular,
   FluentFood24Regular,
+  FluentLocation28Regular,
 } from "@/componenet/icons";
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
@@ -54,7 +55,7 @@ const RestaurentDish = () => {
     refetchOnWindowFocus: false,
     queryFn: async () => {
       const response = await axios.post(
-        "https://dabbawala.live/websites/dropmev3/app/api/api.php",
+        "https://dabbawala.live/websites/dropmev2/app/api/api.php",
         {
           f: "findOneRestaurant1",
           Id: resId,
@@ -77,7 +78,7 @@ const RestaurentDish = () => {
     refetchOnWindowFocus: false,
     queryFn: async () => {
       const response = await axios.post(
-        "https://dabbawala.live/websites/dropmev3/app/api/api.php",
+        "https://dabbawala.live/websites/dropmev2/app/api/api.php",
         {
           f: "getDishesByRestaurantIdCategoryWise2",
           resId: resId,
@@ -100,7 +101,6 @@ const RestaurentDish = () => {
   const gettype = (): DishTypeInfo[] => {
     if (!resdishinfo.data) return [];
     const resdishinfoData = resdishinfo.data as ResDishInfo[][];
-
     if (resdishinfoData.length < 0) {
       return [];
     }
@@ -137,7 +137,9 @@ const RestaurentDish = () => {
   }, [resdishinfo.data]);
 
   if (resinfo.isLoading || resdishinfo.isLoading) {
-    return <div>Loading...</div>;
+    return (
+      <div className="h-screen w-full grid place-items-center">Loading...</div>
+    );
   }
 
   if (resinfo.isError || resdishinfo.isError) {
@@ -173,78 +175,93 @@ const RestaurentDish = () => {
   };
 
   return (
-    <div className="px-4 md:w-5/6 lg:w-4/6 mx-auto">
-      <div className="flex items-center gap-2 pt-2">
-        <FluentBuildingShop20Regular className="scale-150" />
-        <h1 className="text-2xl font-medium">{resinfo.data.name}</h1>
-      </div>
-      <p className="leading-4 text-lg text-gray-800">
-        Cuisines Served : {resinfo.data.cuisineServed}
-      </p>
-      <p className="leading-4 mt-1 text-lg text-gray-900">
-        {resinfo.data.address}
-      </p>
-      <div className="flex items-center border-2 mt-2 justify-center gap-2 rounded-md border-gray-600 w-32">
-        <FluentCall32Regular />
-        <p>{resinfo.data.phone1}</p>
-      </div>
-      <div className="flex items-center gap-2 py-2">
-        <FluentFood24Regular className="scale-150" />
-        <h1 className="text-2xl font-semibold">MENU</h1>
-        <div className="grow"></div>
-        <Radio.Group
-          block
-          options={options}
-          defaultValue={foodType}
-          optionType="button"
-          buttonStyle="solid"
-          onChange={(value) => {
-            setFoodType(value.target.value as FoodType);
-          }}
-        />
-      </div>
-      <div className="w-full bg-gray-800 h-[1px] mb-2"></div>
-      <div className="grid grid-cols-10 gap-2 ">
-        <div className="col-span-2">
-          {gettype().length === 0 && (
-            <Alert message="No dishes available" type="info" showIcon />
-          )}
-          {gettype().map((catName: DishTypeInfo, index) => (
-            <div
-              key={index}
-              role="button"
-              onClick={() => setCurrentDish(catName.name)}
-              className={`text-left text-xl cursor-pointer text-gray-700 my-2 ${
-                currentDish === catName.name
-                  ? "bg-gradient-to-r from-transparent to-rose-500/30 text-rose-500 border-r-4"
-                  : "hover:text-rose-500"
-              }`}
-            >
-              {catName.name} ({catName.count})
-            </div>
-          ))}
+    <div className="min-h-screen">
+      <div className="px-4 md:w-5/6 lg:w-4/6 mx-auto ">
+        <div className="flex items-center gap-2 pt-2">
+          <FluentBuildingShop20Regular className="scale-150" />
+          <h1 className="text-2xl font-medium">{resinfo.data.name}</h1>
         </div>
-        <div className="col-span-8">
-          {getDishList().map((dish) => (
-            <DishItem
-              key={dish.Id}
-              id={parseInt(dish.Id)}
-              name={dish.title}
-              price={dish.price}
-              vegNonVeg={dish.vegNonVeg}
-              isCustomizable={dish.isCustomizable}
-              price1={dish.price1}
-              price2={dish.price2}
-              price3={dish.price3}
-              price4={dish.price4}
-              sub1={dish.sub1}
-              sub2={dish.sub2}
-              sub3={dish.sub3}
-              sub4={dish.sub4}
-            />
-          ))}
+        <p className="leading-4 text-sm text-gray-800 mt-4">
+          Cuisines Served : {resinfo.data.cuisineServed}
+        </p>
+        <div className="flex items-center gap-1 pt-2">
+          <FluentLocation28Regular />
+          <p className="leading-4 text-sm text-gray-900">
+            {resinfo.data.address}
+          </p>
+        </div>
+        <div className="flex items-center gap-1 pt-2">
+          <FluentCall32Regular />
+          <p className="leading-4 text-sm text-gray-900">
+            {resinfo.data.phone1}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 py-2 mt-4">
+          <FluentFood24Regular className="scale-150" />
+          <h1 className="text-lg lg:text-xl font-semibold">MENU</h1>
+          <div className="grow"></div>
+          <Radio.Group
+            block
+            options={options}
+            defaultValue={foodType}
+            optionType="button"
+            buttonStyle="solid"
+            onChange={(value) => {
+              setFoodType(value.target.value as FoodType);
+            }}
+          />
+        </div>
+        <div className="w-full bg-gray-800 h-[1px] mb-2"></div>
+        <div className="lg:grid lg:grid-cols-10 gap-2 ">
+          <div className="lg:col-span-2 lg:block flex gap-2 overflow-x-scroll lg:overflow-auto">
+            {gettype().map((catName: DishTypeInfo, index) => (
+              <div
+                key={index}
+                role="button"
+                onClick={() => setCurrentDish(catName.name)}
+                className={`shrink-0 px-2 lg:px-0 lg:shrink text-left text-sm lg:text-lg cursor-pointer text-gray-700 my-2 ${
+                  currentDish === catName.name
+                    ? "lg:bg-gradient-to-r lg:from-transparent lg:to-rose-500/30 text-rose-500 lg:border-r-4 border-2 lg:border-0 rounded-md lg:rounded-none"
+                    : "hover:text-rose-500"
+                }`}
+              >
+                {catName.name} ({catName.count})
+              </div>
+            ))}
+          </div>
+          <div className="lg:col-span-8">
+            {getDishList().length === 0 && (
+              <Alert message="No dishes available" type="info" showIcon />
+            )}
+            {getDishList().map((dish) => (
+              <DishItem
+                key={dish.Id}
+                id={parseInt(dish.Id)}
+                name={dish.title}
+                price={dish.price}
+                vegNonVeg={dish.vegNonVeg}
+                isCustomizable={dish.isCustomizable}
+                price1={dish.price1}
+                price2={dish.price2}
+                price3={dish.price3}
+                price4={dish.price4}
+                sub1={dish.sub1}
+                sub2={dish.sub2}
+                sub3={dish.sub3}
+                sub4={dish.sub4}
+              />
+            ))}
+          </div>
         </div>
       </div>
+      <button
+        onClick={() => {
+          window.location.href = `https://onelink.to/1651`;
+        }}
+        className="cursor-pointer fixed bottom-4 right-2 py-1 px-4 text-lg bg-rose-500 text-white rounded-md"
+      >
+        Order Now
+      </button>
     </div>
   );
 };
