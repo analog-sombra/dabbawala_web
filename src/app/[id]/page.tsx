@@ -12,7 +12,7 @@ import { useParams } from "next/navigation";
 import axios from "axios";
 import { useEffect, useState } from "react";
 import type { CheckboxGroupProps } from "antd/es/checkbox";
-import { Alert, Radio } from "antd";
+import { Radio } from "antd";
 
 interface ResDishInfo {
   Id: string;
@@ -138,14 +138,33 @@ const RestaurentDish = () => {
 
   if (resinfo.isLoading || resdishinfo.isLoading) {
     return (
-      <div className="h-screen w-full grid place-items-center">Loading...</div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-500 mx-auto mb-4"></div>
+          <p className="text-gray-600 font-medium">Loading restaurant menu...</p>
+        </div>
+      </div>
     );
   }
 
   if (resinfo.isError || resdishinfo.isError) {
     return (
-      <div className="m-4">
-        <Alert message="Error: Something went wrong" type="error" showIcon />
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full text-center">
+          <div className="text-red-500 mb-4">
+            <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Oops! Something went wrong</h2>
+          <p className="text-gray-600 mb-6">We couldn&apos;t load the restaurant information. Please try again later.</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="bg-rose-500 hover:bg-rose-600 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
       </div>
     );
   }
@@ -175,93 +194,139 @@ const RestaurentDish = () => {
   };
 
   return (
-    <div className="min-h-screen">
-      <div className="px-4 md:w-5/6 lg:w-4/6 mx-auto ">
-        <div className="flex items-center gap-2 pt-2">
-          <FluentBuildingShop20Regular className="scale-150" />
-          <h1 className="text-2xl font-medium">{resinfo.data.name}</h1>
-        </div>
-        <p className="leading-4 text-sm text-gray-800 mt-4">
-          Cuisines Served : {resinfo.data.cuisineServed}
-        </p>
-        <div className="flex items-center gap-1 pt-2">
-          <FluentLocation28Regular />
-          <p className="leading-4 text-sm text-gray-900">
-            {resinfo.data.address}
-          </p>
-        </div>
-        <div className="flex items-center gap-1 pt-2">
-          <FluentCall32Regular />
-          <p className="leading-4 text-sm text-gray-900">
-            {resinfo.data.phone1}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 py-2 mt-4">
-          <FluentFood24Regular className="scale-150" />
-          <h1 className="text-lg lg:text-xl font-semibold">MENU</h1>
-          <div className="grow"></div>
-          <Radio.Group
-            block
-            options={options}
-            defaultValue={foodType}
-            optionType="button"
-            buttonStyle="solid"
-            onChange={(value) => {
-              setFoodType(value.target.value as FoodType);
-            }}
-          />
-        </div>
-        <div className="w-full bg-gray-800 h-[1px] mb-2"></div>
-        <div className="lg:grid lg:grid-cols-10 gap-2 ">
-          <div className="lg:col-span-2 lg:block flex gap-2 overflow-x-scroll lg:overflow-auto">
-            {gettype().map((catName: DishTypeInfo, index) => (
-              <div
-                key={index}
-                role="button"
-                onClick={() => setCurrentDish(catName.name)}
-                className={`shrink-0 px-2 lg:px-0 lg:shrink text-left text-sm lg:text-lg cursor-pointer text-gray-700 my-2 ${
-                  currentDish === catName.name
-                    ? "lg:bg-gradient-to-r lg:from-transparent lg:to-rose-500/30 text-rose-500 lg:border-r-4 border-2 lg:border-0 rounded-md lg:rounded-none"
-                    : "hover:text-rose-500"
-                }`}
-              >
-                {catName.name} ({catName.count})
-              </div>
-            ))}
+    <div className="min-h-screen bg-gray-50">
+      <div className="px-4 mx-auto pt-4">
+        {/* Restaurant Header */}
+        <div className="bg-white rounded-lg shadow-sm p-4 mb-4">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="p-2 bg-rose-50 rounded-full">
+              <FluentBuildingShop20Regular className="scale-125 text-rose-500" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900">{resinfo.data.name}</h1>
           </div>
-          <div className="lg:col-span-8">
-            {getDishList().length === 0 && (
-              <Alert message="No dishes available" type="info" showIcon />
-            )}
-            {getDishList().map((dish) => (
-              <DishItem
-                key={dish.Id}
-                id={parseInt(dish.Id)}
-                name={dish.title}
-                price={dish.price}
-                vegNonVeg={dish.vegNonVeg}
-                isCustomizable={dish.isCustomizable}
-                price1={dish.price1}
-                price2={dish.price2}
-                price3={dish.price3}
-                price4={dish.price4}
-                sub1={dish.sub1}
-                sub2={dish.sub2}
-                sub3={dish.sub3}
-                sub4={dish.sub4}
-              />
-            ))}
+          
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-gray-600">
+              <span className="text-sm font-medium">Cuisines:</span>
+              <span className="text-xs bg-gray-100 px-2 py-1 rounded-full">
+                {resinfo.data.cuisineServed}
+              </span>
+            </div>
+            
+            <div className="flex items-center gap-2 text-gray-600">
+              <FluentLocation28Regular className="text-gray-500 scale-75" />
+              <p className="text-sm">{resinfo.data.address}</p>
+            </div>
+            
+            <div className="flex items-center gap-2 text-gray-600">
+              <FluentCall32Regular className="text-gray-500 scale-75" />
+              <p className="text-sm font-medium">{resinfo.data.phone1}</p>
+            </div>
+          </div>
+        </div>
+        {/* Menu Section */}
+        <div className="bg-white rounded-lg shadow-sm p-4 mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-orange-50 rounded-full">
+                <FluentFood24Regular className="scale-125 text-orange-500" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-900">Menu</h2>
+            </div>
+            
+            <Radio.Group
+              options={options}
+              value={foodType}
+              optionType="button"
+              buttonStyle="solid"
+              onChange={(value) => {
+                setFoodType(value.target.value as FoodType);
+              }}
+              className="bg-gray-100 rounded-lg p-1"
+            />
+          </div>
+          
+          {/* Categories and Dishes Grid */}
+          <div className="lg:grid lg:grid-cols-10 gap-4">
+            {/* Categories Sidebar */}
+            <div className="lg:col-span-2 mb-4 lg:mb-0">
+              <div className="bg-gray-50 rounded-lg p-3">
+                <h3 className="font-semibold text-gray-900 mb-3 text-sm">Categories</h3>
+                <div className="lg:space-y-1 flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible">
+                  {gettype().map((catName: DishTypeInfo, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setCurrentDish(catName.name)}
+                      className={`w-full text-left px-3 py-2 rounded-lg transition-all duration-200 whitespace-nowrap lg:whitespace-normal text-sm ${
+                        currentDish === catName.name
+                          ? "bg-rose-500 text-white shadow-md"
+                          : "bg-white text-gray-700 hover:bg-rose-50 hover:text-rose-600 shadow-sm"
+                      }`}
+                    >
+                      <div className="flex justify-between items-center">
+                        <span className="font-medium">{catName.name}</span>
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                          currentDish === catName.name 
+                            ? "bg-white/20 text-white" 
+                            : "bg-gray-100 text-gray-600"
+                        }`}>
+                          {catName.count}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            
+            {/* Dishes List */}
+            <div className="lg:col-span-8">
+              {getDishList().length === 0 && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
+                  <div className="text-blue-600 mb-2">
+                    <FluentFood24Regular className="scale-150 mx-auto" />
+                  </div>
+                  <p className="text-blue-800 font-medium">No dishes available in this category</p>
+                  <p className="text-blue-600 text-sm mt-1">Try selecting a different category or filter</p>
+                </div>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {getDishList().map((dish) => (
+                  <DishItem
+                    key={dish.Id}
+                    id={parseInt(dish.Id)}
+                    name={dish.title}
+                    price={dish.price}
+                    vegNonVeg={dish.vegNonVeg}
+                    isCustomizable={dish.isCustomizable}
+                    price1={dish.price1}
+                    price2={dish.price2}
+                    price3={dish.price3}
+                    price4={dish.price4}
+                    sub1={dish.sub1}
+                    sub2={dish.sub2}
+                    sub3={dish.sub3}
+                    sub4={dish.sub4}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </div>
+      
+      {/* Order Now Button */}
       <button
         onClick={() => {
           window.location.href = `https://onelink.to/1651`;
         }}
-        className="cursor-pointer fixed bottom-4 right-2 py-1 px-4 text-lg bg-rose-500 text-white rounded-md"
+        className="fixed bottom-6 right-6 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-semibold py-3 px-6 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-rose-300"
       >
-        Order Now
+        🛒 Order Now
       </button>
+      
+      {/* Bottom spacing for fixed button */}
+      <div className="h-20"></div>
     </div>
   );
 };
@@ -285,54 +350,82 @@ interface DishItem {
 }
 
 const DishItem = (props: DishItem) => {
+  const hasVariants = props.sub1 || props.sub2 || props.sub3 || props.sub4;
+  
   return (
-    <div className="border border-gray-300 px-4 py-2 rounded-lg shadow-md mb-3">
-      <div className="flex gap-2 items-center">
-        <VegNonVeg vegNonVeg={props.vegNonVeg == "0" ? true : false} />
-        <h2 className="text-lg font-medium text-gray-800">{props.name}</h2>
+    <div className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 p-3">
+      {/* Main dish info */}
+      <div className="flex items-start justify-between mb-2">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <VegNonVeg vegNonVeg={props.vegNonVeg === "0"} />
+            <h3 className="text-base font-semibold text-gray-900 leading-tight">
+              {props.name}
+            </h3>
+            {props.isCustomizable === "1" && (
+              <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-medium">
+                Custom
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-lg font-bold text-rose-600">₹{props.price}</span>
+          </div>
+        </div>
       </div>
-      <p>₹ {props.price}</p>
 
-      {props.sub1 ? (
-        <div className="h-[1px] w-full bg-gray-300 my-1"></div>
-      ) : null}
-
-      {props.sub1 ? (
-        <p className="text-sm text-gray-800">
-          - {props.sub1} : ₹ {props.price1}
-        </p>
-      ) : null}
-      {props.sub2 ? (
-        <p className="text-sm text-gray-800">
-          - {props.sub2} : ₹ {props.price2}
-        </p>
-      ) : null}
-      {props.sub3 ? (
-        <p className="text-sm text-gray-800">
-          - {props.sub3} : ₹ {props.price3}
-        </p>
-      ) : null}
-      {props.sub4 ? (
-        <p className="text-sm text-gray-800">
-          - {props.sub4} : ₹ {props.price4}
-        </p>
-      ) : null}
+      {/* Variants */}
+      {hasVariants && (
+        <div className="border-t border-gray-100 pt-2 mt-2">
+          <h4 className="text-xs font-medium text-gray-700 mb-2">Options:</h4>
+          <div className="space-y-1">
+            {props.sub1 && (
+              <div className="flex justify-between items-center py-1 px-2 bg-gray-50 rounded text-xs">
+                <span className="text-gray-700">{props.sub1}</span>
+                <span className="font-semibold text-gray-900">₹{props.price1}</span>
+              </div>
+            )}
+            {props.sub2 && (
+              <div className="flex justify-between items-center py-1 px-2 bg-gray-50 rounded text-xs">
+                <span className="text-gray-700">{props.sub2}</span>
+                <span className="font-semibold text-gray-900">₹{props.price2}</span>
+              </div>
+            )}
+            {props.sub3 && (
+              <div className="flex justify-between items-center py-1 px-2 bg-gray-50 rounded text-xs">
+                <span className="text-gray-700">{props.sub3}</span>
+                <span className="font-semibold text-gray-900">₹{props.price3}</span>
+              </div>
+            )}
+            {props.sub4 && (
+              <div className="flex justify-between items-center py-1 px-2 bg-gray-50 rounded text-xs">
+                <span className="text-gray-700">{props.sub4}</span>
+                <span className="font-semibold text-gray-900">₹{props.price4}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 const VegNonVeg = ({ vegNonVeg }: { vegNonVeg: boolean }) => {
   return (
-    <div
-      className={` h-4 w-4 grid place-items-center border-2 ${
-        vegNonVeg ? "border-emerald-500" : "border-red-500"
-      }`}
-    >
+    <div className="flex items-center justify-center">
       <div
-        className={`h-2 w-2 rounded-full ${
-          vegNonVeg ? "bg-emerald-500" : "bg-red-500"
+        className={`h-5 w-5 rounded border-2 flex items-center justify-center ${
+          vegNonVeg 
+            ? "border-green-600 bg-green-50" 
+            : "border-red-600 bg-red-50"
         }`}
-      ></div>
+      >
+        <div
+          className={`h-2.5 w-2.5 rounded-full ${
+            vegNonVeg ? "bg-green-600" : "bg-red-600"
+          }`}
+        />
+      </div>
     </div>
   );
 };
