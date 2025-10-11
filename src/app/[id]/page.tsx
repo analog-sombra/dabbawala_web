@@ -13,6 +13,9 @@ import axios from "axios";
 import { useEffect, useState } from "react";
 import type { CheckboxGroupProps } from "antd/es/checkbox";
 import { Drawer, Radio } from "antd";
+import { toast } from "react-toastify";
+
+const api_url = "https://dabbawala.live/websites/dropmev3/app/api/api.php";
 
 interface ResDishInfo {
   Id: string;
@@ -25,6 +28,11 @@ interface ResDishInfo {
   price2: string | null;
   price3: string | null;
   price4: string | null;
+  purPrice: string | null;
+  purPrice1: string | null;
+  purPrice2: string | null;
+  purPrice3: string | null;
+  purPrice4: string | null;
   sub1: string | null;
   sub2: string | null;
   sub3: string | null;
@@ -39,11 +47,40 @@ interface CartItem {
   price: string;
 }
 
+interface User {
+  Id: string;
+  username: string;
+  contact: string;
+}
+
+interface Address {
+  Id: string;
+  loctype: string;
+  address: string;
+  userId: string;
+  latitude?: string;
+  longitude?: string;
+}
+
+interface Zone {
+  Id: string;
+  zoneName: string;
+}
+
+interface Locality {
+  Id: string;
+  localityName: string;
+  latitude: string;
+  longitude: string;
+  zoneId: string;
+}
+
 const RestaurentDish = () => {
   const [currentDish, setCurrentDish] = useState<string | null>(null);
   const { id } = useParams<{ id: string | string[] }>();
   const idString = Array.isArray(id) ? id[0] : id;
   const resId = parseInt(idString, 10);
+  const [isSelfRes, setIsSelfRes] = useState(false);
 
   enum FoodType {
     ALL = "ALL",
@@ -65,19 +102,36 @@ const RestaurentDish = () => {
   const [variantModalOpen, setVariantModalOpen] = useState(false);
   const [selectedDish, setSelectedDish] = useState<ResDishInfo | null>(null);
 
+  // User management states
   const [userBox, setUserBox] = useState(false);
+  const [contact, setContact] = useState("");
+  const [user, setUser] = useState<User | null>(null);
+  const [addresses, setAddresses] = useState<Address[]>([]);
+  const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showAddAddress, setShowAddAddress] = useState(false);
+
+  // Add address states
+  const [zones, setZones] = useState<Zone[]>([]);
+  const [localities, setLocalities] = useState<Locality[]>([]);
+  const [selectedZone, setSelectedZone] = useState<Zone | null>(null);
+  const [selectedLocality, setSelectedLocality] = useState<Locality | null>(
+    null
+  );
+  const [addressText, setAddressText] = useState("");
+
+  // Delivery charge state
+  const [deliveryCharge, setDeliveryCharge] = useState<number>(0);
 
   const resinfo = useQuery({
     queryKey: ["resinfo"],
     refetchOnWindowFocus: false,
     queryFn: async () => {
-      const response = await axios.post(
-        "https://dabbawala.live/websites/dropmev2/app/api/api.php",
-        {
-          f: "findOneRestaurant1",
-          Id: resId,
-        }
-      );
+      const response = await axios.post(api_url, {
+        f: "findOneRestaurant1",
+        Id: resId,
+      });
 
       if (!response.data) {
         throw new Error("No data found");
@@ -86,21 +140,23 @@ const RestaurentDish = () => {
       if (response.data.data.length < 0) {
         throw new Error("No data found");
       }
+      if (response.data.data[0].is_self_order === "1") {
+        setIsSelfRes(true);
+      }
       return response.data.data[0];
     },
   });
 
   const resdishinfo = useQuery({
-    queryKey: ["getdishbyid"],
+    queryKey: ["getdishbyid", isSelfRes],
     refetchOnWindowFocus: false,
     queryFn: async () => {
-      const response = await axios.post(
-        "https://dabbawala.live/websites/dropmev2/app/api/api.php",
-        {
-          f: "getDishesByRestaurantIdCategoryWise2",
-          resId: resId,
-        }
-      );
+      const response = await axios.post(api_url, {
+        f: isSelfRes
+          ? "getDishesByRestaurantIdCategoryWise3"
+          : "getDishesByRestaurantIdCategoryWise2",
+        resId: resId,
+      });
 
       if (!response.data) {
         throw new Error("No data found");
@@ -256,9 +312,8 @@ const RestaurentDish = () => {
         : dish.price
       : dish.price;
 
-    const cartItemId = Date.now();
     const newCartItem: CartItem = {
-      id: cartItemId,
+      id: parseInt(dish.Id),
       dish,
       sub,
       quantity: 1,
@@ -282,10 +337,14 @@ const RestaurentDish = () => {
     );
   };
 
-  const getCartTotal = () => {
+  const getItemsTotal = () => {
     return cart.reduce((total, item) => {
       return total + parseFloat(item.price) * item.quantity;
     }, 0);
+  };
+
+  const getCartTotal = () => {
+    return getItemsTotal() + deliveryCharge;
   };
 
   const getCartItemCount = () => {
@@ -374,6 +433,317 @@ const RestaurentDish = () => {
     }
   };
 
+  // User management functions
+  const getUserByContact = async (contactNumber: string) => {
+    setIsLoading(true);
+    try {
+      const response = await axios.post(api_url, {
+        f: "getUserByContact",
+        contact: contactNumber,
+      });
+
+      if (response.data.status && response.data.data.length > 0) {
+        const userData = response.data.data[0];
+        setUser(userData);
+        await getAddressByUserId(userData.Id);
+        setIsSearching(false);
+      } else {
+        setUser(null);
+        setAddresses([]);
+        setIsSearching(true);
+      }
+    } catch (error) {
+      toast.error("Error fetching user : " + error);
+      setUser(null);
+      setAddresses([]);
+      setIsSearching(true);
+    }
+    setIsLoading(false);
+  };
+
+  const getAddressByUserId = async (userId: string) => {
+    try {
+      const response = await axios.post(api_url, {
+        f: "getAddressByUserId",
+        id: userId,
+      });
+
+      if (response.data.status) {
+        setAddresses(response.data.data);
+      } else {
+        setAddresses([]);
+      }
+    } catch (error) {
+      toast.error("Error fetching addresses : " + error);
+      setAddresses([]);
+    }
+  };
+
+  const createUser = async (contactNumber: string) => {
+    setIsLoading(true);
+    try {
+      const response = await axios.post(api_url, {
+        f: "addUserByContact",
+        contact: contactNumber,
+        name: contactNumber,
+      });
+
+      if (response.data.status) {
+        await getUserByContact(contactNumber);
+        setShowAddAddress(true);
+      }
+    } catch (error) {
+      toast.error("Error creating user: " + error);
+    }
+    setIsLoading(false);
+  };
+
+  const getAllZones = async () => {
+    try {
+      const response = await axios.post(api_url, { f: "getAllZones" });
+
+      if (response.data.status) {
+        setZones(response.data.data);
+      }
+    } catch (error) {
+      toast.error("Error fetching zones: " + error);
+    }
+  };
+
+  const getLocalitiesFromZone = async (zoneId: string) => {
+    try {
+      const response = await axios.post(api_url, {
+        f: "getLocalitiesFromZone",
+        zoneId: zoneId,
+      });
+
+      if (response.data.status) {
+        setLocalities(response.data.data);
+      }
+    } catch (error) {
+      toast.error("Error fetching localities: " + error);
+    }
+  };
+
+  const addUserAddress = async () => {
+    if (!user || !selectedLocality || !addressText.trim()) return;
+
+    setIsLoading(true);
+    try {
+      const response = await axios.post(api_url, {
+        f: "addUserAddress",
+        userId: user.Id,
+        address: addressText,
+        howtoreach: `${selectedZone?.zoneName}, ${selectedLocality.localityName}`,
+        latitude: selectedLocality.latitude,
+        longitude: selectedLocality.longitude,
+      });
+
+      if (response.data.status) {
+        await getAddressByUserId(user.Id);
+        setShowAddAddress(false);
+        // Reset form
+        setSelectedZone(null);
+        setSelectedLocality(null);
+        setAddressText("");
+      }
+    } catch (error) {
+      toast.error("Error adding address: " + error);
+    }
+    setIsLoading(false);
+  };
+
+  const resetUserForm = () => {
+    setContact("");
+    setUser(null);
+    setAddresses([]);
+    setSelectedAddress(null);
+    setIsSearching(false);
+    setShowAddAddress(false);
+    setSelectedZone(null);
+    setSelectedLocality(null);
+    setAddressText("");
+    setDeliveryCharge(0);
+  };
+
+  const getDeliveryCharge = async (
+    addressId: string,
+    latitude: string,
+    longitude: string
+  ) => {
+    if (!user || !addressId) return;
+
+    try {
+      const response = await axios.post(api_url, {
+        f: "validatePreCartPage3",
+        userId: user.Id,
+        resId: resId.toString(),
+        addressId: addressId,
+        latitude: latitude,
+        longitude: longitude,
+      });
+
+      if (response.data.status && response.data.data.length > 0) {
+        const charge = parseFloat(response.data.data[0].deliveryCharge || "0");
+        setDeliveryCharge(charge);
+      } else {
+        setDeliveryCharge(0);
+      }
+    } catch (error) {
+      toast.error("Error fetching delivery charge: " + error);
+      setDeliveryCharge(0);
+    }
+  };
+
+  const proceedToCheckout = () => {
+    if (selectedAddress && user) {
+      // Get delivery charge when address is selected
+      getDeliveryCharge(
+        selectedAddress.Id,
+        selectedAddress.latitude || "0",
+        selectedAddress.longitude || "0"
+      );
+
+      // Close user info drawer and open cart drawer
+      setUserBox(false);
+      setCartOpen(true);
+    }
+  };
+
+  // Order creation functions
+  const getOrderItems = () => {
+    return cart.map((item) => {
+      return {
+        dishId: item.dish.Id,
+        qty: item.quantity,
+        price:
+          item.sub === null
+            ? parseFloat(item.dish.price)
+            : item.sub === item.dish.sub1
+            ? parseFloat(item.dish.price1 || item.dish.price)
+            : item.sub === item.dish.sub2
+            ? parseFloat(item.dish.price2 || item.dish.price)
+            : item.sub === item.dish.sub3
+            ? parseFloat(item.dish.price3 || item.dish.price)
+            : parseFloat(item.dish.price4 || item.dish.price),
+        description: item.dish.title,
+        purPrice:
+          item.sub === null
+            ? item.dish.purPrice
+            : item.sub === item.dish.sub1
+            ? item.dish.purPrice1 || item.dish.purPrice
+            : item.sub === item.dish.sub2
+            ? item.dish.purPrice2 || item.dish.purPrice
+            : item.sub === item.dish.sub3
+            ? item.dish.purPrice3 || item.dish.purPrice
+            : item.dish.purPrice4 || item.dish.purPrice,
+        subDishId:
+          item.sub === null
+            ? "-1"
+            : item.sub === item.dish.sub1
+            ? "1"
+            : item.sub === item.dish.sub2
+            ? "2"
+            : item.sub === item.dish.sub3
+            ? "3"
+            : "4",
+      };
+    });
+  };
+
+  const createOrder = async () => {
+    if (!user || !selectedAddress || cart.length === 0) {
+      toast.error("Missing required data for order creation");
+      return false;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const checkOutOrderId = `order_${Date.now()}`;
+      const itemsTotal = getItemsTotal();
+
+      // Step 1: Create Order
+      const orderResponse = await axios.post(api_url, {
+        f: "createOrder3",
+        userId: user.Id,
+        restaurantId: resId.toString(),
+        addressId: selectedAddress.Id,
+        offerId: "-1",
+        membershipId: "0",
+        referalId: "-1",
+        paymentType: "COD",
+        paymentRef: "CASH ON DELIVERY",
+        checkOutOrderId: checkOutOrderId,
+        razorPaySignature: "",
+        razorPayOrderId: "",
+        toCollect:
+          itemsTotal +
+          deliveryCharge +
+          itemsTotal * (parseInt(resinfo.data.tax) / 100),
+        toPay:
+          itemsTotal +
+          deliveryCharge +
+          itemsTotal * (parseInt(resinfo.data.tax) / 100),
+        isTakeAway: "0",
+        walletUsed: "0.00",
+        itemTotal: itemsTotal.toString(),
+        taxes: Math.round(itemsTotal * (parseInt(resinfo.data.tax) / 100)),
+        handlingPacking: "0.00",
+        delivery: deliveryCharge.toString(),
+        rDelivery: deliveryCharge.toString(),
+        discount: "0.00",
+        feedPoorAmnt: "0.0",
+        thnkRdrAmnt: "0.0",
+        deliveryInstruction: "NA",
+        otpPin: "1234",
+        remark: "NA",
+        status: "PENDING",
+        orderitems: JSON.stringify(getOrderItems()),
+      });
+
+      if (orderResponse.data.status) {
+        const orderId = orderResponse.data.data.orderId;
+
+        // Step 3: Add Self Order Validate
+        await axios.post(api_url, {
+          f: "addWebOrderValidate",
+          orderId: orderId.toString(),
+          riderId: "-1",
+          userId: user.Id,
+          addressId: selectedAddress.Id,
+          restaurantId: resId.toString(),
+          checkOutOrderId: checkOutOrderId,
+          itemTotal: itemsTotal.toString(),
+          purItemTotal: itemsTotal.toString(),
+          delivery: deliveryCharge.toString(),
+        });
+
+        // if (validateResponse.data.status) {
+        // Success - clear cart and show success message
+        setCart([]);
+        setCartOpen(false);
+        setUserBox(false);
+        resetUserForm();
+
+        toast.success("Order placed successfully!");
+        return true;
+        // } else {
+        //   alert("Order validation failed. Please try again.");
+        //   return false;
+        // }
+      } else {
+        toast.error("Failed to create order. Please try again.");
+        return false;
+      }
+    } catch (error) {
+      toast.error("Error creating order: " + error);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Cart Drawer */}
@@ -393,22 +763,63 @@ const RestaurentDish = () => {
         footer={
           cart.length > 0 && (
             <div className="space-y-4">
-              <div className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
-                <span className="text-lg font-bold">Total:</span>
-                <span className="text-xl font-bold text-rose-600">
-                  ₹{getCartTotal().toFixed(2)}
-                </span>
+              <div className="p-4 bg-gray-50 rounded-lg space-y-2">
+                {/* Items Price */}
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Items Price:</span>
+                  <span className="text-sm font-semibold">
+                    ₹{getItemsTotal().toFixed(2)}
+                  </span>
+                </div>
+
+                {/* Delivery Charge */}
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">
+                    Delivery Charge:
+                  </span>
+                  <span className="text-sm font-semibold">
+                    {deliveryCharge > 0
+                      ? `₹${deliveryCharge.toFixed(2)}`
+                      : selectedAddress
+                      ? "₹0.00"
+                      : "TBD"}
+                  </span>
+                </div>
+
+                {/* Total */}
+                <div className="border-t pt-2 mt-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-lg font-bold">Total:</span>
+                    <span className="text-xl font-bold text-rose-600">
+                      ₹{getCartTotal().toFixed(2)}
+                    </span>
+                  </div>
+                </div>
               </div>
+
               <button
                 onClick={() => {
-                  console.log(userBox);
-                  console.log("working");
-                  // window.location.href = 'https://onelink.to/1651';
-                  setUserBox(true);
+                  if (selectedAddress && user) {
+                    createOrder();
+                  } else {
+                    // If no user/address selected, go back to user info
+                    setCartOpen(false);
+                    setUserBox(true);
+                  }
                 }}
-                className="w-full bg-gradient-to-r from-rose-500 to-pink-600  text-white font-semibold py-3 px-6 rounded-lg transition-all duration-300 transform cursor-pointer"
+                disabled={isLoading}
+                className="w-full bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-300 transform cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Proceed to Checkout
+                {isLoading ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Placing Order...
+                  </div>
+                ) : selectedAddress && user ? (
+                  "Place Order"
+                ) : (
+                  "Select Address"
+                )}
               </button>
             </div>
           )
@@ -516,14 +927,369 @@ const RestaurentDish = () => {
           </div>
         )}
 
+        {/* User Information Drawer */}
         <Drawer
           title={<p className="text-lg font-bold">User Information</p>}
           placement="right"
           size="large"
-          onClose={() => setUserBox(false)}
+          onClose={() => {
+            setUserBox(false);
+            resetUserForm();
+          }}
           open={userBox}
+          footer={
+            !showAddAddress &&
+            selectedAddress && (
+              <button
+                onClick={proceedToCheckout}
+                className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-300"
+              >
+                Continue to Cart
+              </button>
+            )
+          }
         >
-          <p>User information form will go here.</p>
+          {!showAddAddress ? (
+            <div className="space-y-6">
+              {/* Contact Input */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">
+                  Mobile Number
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="tel"
+                    value={contact}
+                    onChange={(e) => setContact(e.target.value)}
+                    placeholder="Enter mobile number"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-rose-500"
+                    maxLength={10}
+                  />
+                  {user ? (
+                    <button
+                      onClick={resetUserForm}
+                      className="px-4 py-2 bg-rose-500 text-white rounded-lg hover:bg-rose-600 transition-colors"
+                    >
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() =>
+                        contact.trim() && getUserByContact(contact)
+                      }
+                      disabled={isLoading || !contact.trim()}
+                      className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {isLoading ? (
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      ) : (
+                        <svg
+                          className="w-5 h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                          />
+                        </svg>
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* User Found */}
+              {user && (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
+                      <svg
+                        className="w-6 h-6 text-white"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                        />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900">
+                        {user.username}
+                      </h3>
+                      <p className="text-sm text-gray-600">{user.contact}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Addresses List */}
+              {user && addresses.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Select Address
+                    </h3>
+                    <button
+                      onClick={() => {
+                        setShowAddAddress(true);
+                        getAllZones();
+                      }}
+                      className="text-sm text-rose-600 hover:text-rose-800 font-medium"
+                    >
+                      + Add New
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {addresses.map((addr) => (
+                      <div
+                        key={addr.Id}
+                        onClick={() => {
+                          setSelectedAddress(addr);
+                          // Get delivery charge when address is selected
+                          getDeliveryCharge(
+                            addr.Id,
+                            addr.latitude || "0",
+                            addr.longitude || "0"
+                          );
+                        }}
+                        className={`p-4 border rounded-lg cursor-pointer transition-all ${
+                          selectedAddress?.Id === addr.Id
+                            ? "border-rose-500 bg-rose-50 ring-2 ring-rose-200"
+                            : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <h4 className="font-medium text-gray-900">
+                              {addr.loctype}
+                            </h4>
+                            <p className="text-sm text-gray-600 mt-1">
+                              {addr.address}
+                            </p>
+                          </div>
+                          {selectedAddress?.Id === addr.Id && (
+                            <div className="text-rose-500">
+                              <svg
+                                className="w-5 h-5"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
+                                <path
+                                  fillRule="evenodd"
+                                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* No Addresses */}
+              {user && addresses.length === 0 && (
+                <div className="text-center py-8">
+                  <div className="text-gray-400 mb-4">
+                    <svg
+                      className="w-16 h-16 mx-auto"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                      />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                      />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-600 mb-2">
+                    No addresses found
+                  </h3>
+                  <p className="text-gray-500 mb-4">
+                    Add an address to proceed with your order
+                  </p>
+                  <button
+                    onClick={() => {
+                      setShowAddAddress(true);
+                      getAllZones();
+                    }}
+                    className="bg-rose-500 text-white px-6 py-2 rounded-lg hover:bg-rose-600 transition-colors"
+                  >
+                    Add Address
+                  </button>
+                </div>
+              )}
+
+              {/* Create User */}
+              {isSearching && !user && (
+                <div className="text-center py-8">
+                  <div className="text-gray-400 mb-4">
+                    <svg
+                      className="w-16 h-16 mx-auto"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
+                      />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-600 mb-2">
+                    User not found
+                  </h3>
+                  <p className="text-gray-500 mb-4">
+                    Create a new account with this mobile number
+                  </p>
+                  <button
+                    onClick={() => createUser(contact)}
+                    disabled={isLoading}
+                    className="bg-green-500 text-white px-6 py-2 rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {isLoading ? "Creating..." : "Create User"}
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Add Address Form */
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Add New Address
+                </h3>
+                <button
+                  onClick={() => setShowAddAddress(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Zone Selection */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">
+                  Zone
+                </label>
+                <select
+                  value={selectedZone?.Id || ""}
+                  onChange={(e) => {
+                    const zone = zones.find((z) => z.Id === e.target.value);
+                    setSelectedZone(zone || null);
+                    if (zone) {
+                      getLocalitiesFromZone(zone.Id);
+                      setSelectedLocality(null);
+                    }
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-rose-500"
+                >
+                  <option value="">Select Zone</option>
+                  {zones.map((zone) => (
+                    <option key={zone.Id} value={zone.Id}>
+                      {zone.zoneName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Locality Selection */}
+              {selectedZone && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">
+                    Locality
+                  </label>
+                  <select
+                    value={selectedLocality?.Id || ""}
+                    onChange={(e) => {
+                      const locality = localities.find(
+                        (l) => l.Id === e.target.value
+                      );
+                      setSelectedLocality(locality || null);
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-rose-500"
+                  >
+                    <option value="">Select Locality</option>
+                    {localities.map((locality) => (
+                      <option key={locality.Id} value={locality.Id}>
+                        {locality.localityName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Address Text */}
+              {selectedLocality && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">
+                    Address
+                  </label>
+                  <textarea
+                    value={addressText}
+                    onChange={(e) => setAddressText(e.target.value)}
+                    placeholder="Enter detailed address..."
+                    rows={4}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-rose-500 resize-none"
+                  />
+
+                  <button
+                    onClick={addUserAddress}
+                    disabled={isLoading || !addressText.trim()}
+                    className="w-full bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {isLoading ? "Adding Address..." : "Add Address"}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </Drawer>
       </Drawer>
 
@@ -905,6 +1671,11 @@ const RestaurentDish = () => {
                     price2={dish.price2}
                     price3={dish.price3}
                     price4={dish.price4}
+                    purPrice={dish.purPrice}
+                    purPrice1={dish.purPrice1}
+                    purPrice2={dish.purPrice2}
+                    purPrice3={dish.purPrice3}
+                    purPrice4={dish.purPrice4}
                     sub1={dish.sub1}
                     sub2={dish.sub2}
                     sub3={dish.sub3}
@@ -971,6 +1742,11 @@ interface DishItemProps {
   price2: string | null;
   price3: string | null;
   price4: string | null;
+  purPrice: string | null;
+  purPrice1: string | null;
+  purPrice2: string | null;
+  purPrice3: string | null;
+  purPrice4: string | null;
   sub1: string | null;
   sub2: string | null;
   sub3: string | null;
@@ -1014,6 +1790,11 @@ const DishItem = (props: DishItemProps) => {
     price2: props.price2,
     price3: props.price3,
     price4: props.price4,
+    purPrice: props.purPrice,
+    purPrice1: props.purPrice1,
+    purPrice2: props.purPrice2,
+    purPrice3: props.purPrice3,
+    purPrice4: props.purPrice4,
     sub1: props.sub1,
     sub2: props.sub2,
     sub3: props.sub3,
